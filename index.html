@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KNN Retail Recommender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<!-- COLUMN MAPPING MODAL -->
+<div id="mapping-overlay" class="hidden">
+  <div id="mapping-modal">
+    <div class="modal-title">Mapear Colunas do CSV</div>
+    <div class="modal-sub">
+      Arquivo: <strong id="modal-filename">—</strong> · <strong id="modal-rowcount">—</strong> linhas · <strong id="modal-colcount">—</strong> colunas
+    </div>
+
+    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">Colunas detectadas</div>
+    <div class="cols-strip" id="cols-strip"></div>
+
+    <div class="mapping-error" id="mapping-error"></div>
+
+    <div class="mapping-grid">
+      <div class="map-field">
+        <div class="map-label"><span class="req">★</span> Cliente (ID) <span class="field-desc">— identificador único do cliente</span></div>
+        <select id="map-customer" class="map-select"></select>
+      </div>
+      <div class="map-field">
+        <div class="map-label"><span class="req">★</span> Produto (nome/ID) <span class="field-desc">— nome ou código do item</span></div>
+        <select id="map-product" class="map-select"></select>
+      </div>
+      <div class="map-field">
+        <div class="map-label"><span class="opt">◎</span> Quantidade <span class="field-desc">— qtd comprada (opcional)</span></div>
+        <select id="map-quantity" class="map-select"></select>
+      </div>
+      <div class="map-field">
+        <div class="map-label"><span class="opt">◎</span> Preço / Valor <span class="field-desc">— valor unitário (opcional)</span></div>
+        <select id="map-price" class="map-select"></select>
+      </div>
+    </div>
+
+    <div class="qty-options" id="qty-options-box">
+      <div class="qty-options-title">Quando Quantidade não mapeada, usar:</div>
+      <div class="radio-row">
+        <input type="radio" name="qty-mode" id="qm-binary" value="binary" checked>
+        <label for="qm-binary"><strong>Binário</strong> — 1 se comprou, 0 se não</label>
+      </div>
+      <div class="radio-row">
+        <input type="radio" name="qty-mode" id="qm-price" value="price">
+        <label for="qm-price"><strong>Valor total</strong> — usa a coluna de Preço mapeada acima</label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-cancel-mapping">Cancelar</button>
+      <button class="btn-confirm" id="btn-confirm-mapping">✦ Confirmar e Processar</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>KNN <span>Retail</span> Recommender</div>
+  <div class="badge">Qualquer CSV de transações · KNN + KMeans</div>
+</header>
+
+<main>
+  <!-- SECTION 1: UPLOAD -->
+  <section>
+    <div class="section-title"><span class="section-num">01</span>Carregar Dataset</div>
+    <div id="upload-zone">
+      <div class="upload-icon">📂</div>
+      <h3>Arraste o CSV aqui</h3>
+      <p>Funciona com qualquer CSV de transações — você escolherá quais colunas usar</p>
+      <button class="btn-upload" onclick="document.getElementById('file-input').click()">↑ Selecionar arquivo CSV</button>
+      <input type="file" id="file-input" accept=".csv">
+    </div>
+    <div id="progress-wrap" style="margin-top:20px;">
+      <div class="progress-label">
+        <span id="progress-text">Processando...</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-steps">
+        <div class="progress-step" id="step-parse">Leitura CSV</div>
+        <div class="progress-step" id="step-clean">Limpeza</div>
+        <div class="progress-step" id="step-matrix">Matriz</div>
+        <div class="progress-step" id="step-norm">Normalização L2</div>
+        <div class="progress-step" id="step-knn">KNN</div>
+        <div class="progress-step" id="step-kmeans">KMeans</div>
+        <div class="progress-step" id="step-pca">PCA</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: STATS -->
+  <section id="stats-section" class="hidden">
+    <div class="section-title"><span class="section-num">02</span>Resumo do Dataset</div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div style="margin-top:16px;"><div class="preproc-log" id="preproc-log"></div></div>
+    <div class="mapping-badge" id="mapping-badge" style="margin-top:16px;"></div>
+  </section>
+
+  <!-- SECTION 3: RECOMMENDER -->
+  <section id="rec-section" class="hidden">
+    <div class="section-title"><span class="section-num">03</span>Sistema de Recomendação KNN</div>
+    <div class="card">
+      <div class="rec-controls">
+        <div class="form-group">
+          <label>Cliente · <span id="customer-col-label" class="text-accent" style="font-size:9px;"></span></label>
+          <select id="customer-select" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Recomendações · <span id="n-rec-label" class="text-accent">5</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="n-rec" min="1" max="10" value="5">
+            <span class="slider-val" id="n-rec-val">5</span>
+          </div>
+        </div>
+        <button class="btn-rec" id="btn-rec">✦ Recomendar</button>
+      </div>
+      <div id="rec-placeholder" class="placeholder">
+        <div class="placeholder-icon">🔮</div>
+        <p>Selecione um cliente e clique em Recomendar</p>
+      </div>
+      <div id="rec-results" class="hidden"></div>
+    </div>
+  </section>
+
+  <!-- SECTION 4: SEGMENTATION -->
+  <section id="seg-section" class="hidden">
+    <div class="section-title"><span class="section-num">04</span>Segmentação de Clientes (KMeans · PCA)</div>
+    <div class="charts-row">
+      <div class="chart-wrap">
+        <div class="chart-title">Dispersão dos Segmentos</div>
+        <div class="chart-sub">Redução PCA → 2D · 4 clusters KMeans</div>
+        <div class="chart-container" style="height:360px;"><canvas id="scatter-chart"></canvas></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">Distribuição por Segmento</div>
+        <div class="chart-sub">Total de clientes em cada cluster</div>
+        <div class="chart-container" style="height:360px;"><canvas id="donut-chart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: TOP PRODUCTS -->
+  <section id="top-sec" class="hidden">
+    <div class="section-title"><span class="section-num">05</span>Top Produtos por Segmento</div>
+    <div class="seg-grid" id="seg-grid"></div>
+  </section>
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
