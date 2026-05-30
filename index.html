@@ -62,7 +62,7 @@
 
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-cancel-mapping">Cancelar</button>
-      <button class="btn-confirm" id="btn-confirm-mapping">✦ Confirmar e Processar</button>
+      <button class="btn-confirm" id="btn-confirm-mapping">Confirmar e Processar</button>
     </div>
   </div>
 </div>
@@ -77,10 +77,10 @@
   <section>
     <div class="section-title"><span class="section-num">01</span>Carregar Dataset</div>
     <div id="upload-zone">
-      <div class="upload-icon">📂</div>
+      <div class="upload-icon"></div>
       <h3>Arraste o CSV aqui</h3>
       <p>Funciona com qualquer CSV de transações — você escolherá quais colunas usar</p>
-      <button class="btn-upload" onclick="document.getElementById('file-input').click()">↑ Selecionar arquivo CSV</button>
+      <button class="btn-upload" onclick="document.getElementById('file-input').click()">Selecionar arquivo CSV</button>
       <input type="file" id="file-input" accept=".csv">
     </div>
     <div id="progress-wrap" style="margin-top:20px;">
@@ -125,10 +125,10 @@
             <span class="slider-val" id="n-rec-val">5</span>
           </div>
         </div>
-        <button class="btn-rec" id="btn-rec">✦ Recomendar</button>
+        <button class="btn-rec" id="btn-rec">Recomendar</button>
       </div>
       <div id="rec-placeholder" class="placeholder">
-        <div class="placeholder-icon">🔮</div>
+        <div class="placeholder-icon"></div>
         <p>Selecione um cliente e clique em Recomendar</p>
       </div>
       <div id="rec-results" class="hidden"></div>
@@ -141,7 +141,7 @@
     <div class="charts-row">
       <div class="chart-wrap">
         <div class="chart-title">Dispersão dos Segmentos</div>
-        <div class="chart-sub">Redução PCA → 2D · 4 clusters KMeans</div>
+        <div class="chart-sub">Redução PCA 2D · 4 clusters KMeans</div>
         <div class="chart-container" style="height:360px;"><canvas id="scatter-chart"></canvas></div>
       </div>
       <div class="chart-wrap">

@@ -521,12 +521,12 @@ function renderStats(raw, noC, noP, badQ, final) {
       ? `valor de <em>${columnMap.price}</em>`
       : "binário (1 por compra)";
   document.getElementById("preproc-log").innerHTML = `
-    <div class="log-line"><span>🔍</span> Total bruto: <span class="kept">${fmtNum(raw)} linhas</span></div>
-    <div class="log-line"><span>🗑</span> Sem cliente (<em>${columnMap.customer}</em>) removidas: <span class="removed">−${fmtNum(noC)}</span></div>
-    <div class="log-line"><span>🗑</span> Sem produto (<em>${columnMap.product}</em>) removidas: <span class="removed">−${fmtNum(noP)}</span></div>
-    ${columnMap.quantity || (columnMap.price && quantityMode === "price") ? `<div class="log-line"><span>🗑</span> Quantidade/valor ≤ 0 removidas: <span class="removed">−${fmtNum(badQ)}</span></div>` : ""}
-    <div class="log-line"><span>✅</span> Dataset final: <span class="kept">${fmtNum(final)} linhas</span></div>
-    <div class="log-line"><span>⚖️</span> Pesos usados: ${qtyLabel}</div>
+    <div class="log-line">Total bruto: <span class="kept">${fmtNum(raw)} linhas</span></div>
+    <div class="log-line">Sem cliente (<em>${columnMap.customer}</em>) removidas: <span class="removed">−${fmtNum(noC)}</span></div>
+    <div class="log-line">Sem produto (<em>${columnMap.product}</em>) removidas: <span class="removed">−${fmtNum(noP)}</span></div>
+    ${columnMap.quantity || (columnMap.price && quantityMode === "price") ? `<div class="log-line">Quantidade/valor ≤ 0 removidas: <span class="removed">−${fmtNum(badQ)}</span></div>` : ""}
+    <div class="log-line">Dataset final: <span class="kept">${fmtNum(final)} linhas</span></div>
+    <div class="log-line">Pesos usados: ${qtyLabel}</div>
   `;
 }
 
@@ -539,10 +539,7 @@ function renderMappingBadge() {
     cm.price ? { label: "preço", val: cm.price } : null,
   ].filter(Boolean);
   document.getElementById("mapping-badge").innerHTML = items
-    .map(
-      (i) =>
-        `<span class="mbadge">${i.label} <span class="arrow">→</span> ${i.val}</span>`,
-    )
+    .map((i) => `<span class="mbadge">${i.label}: ${i.val}</span>`)
     .join("");
 }
 
@@ -566,7 +563,7 @@ document.getElementById("btn-rec").addEventListener("click", () => {
   if (!recs.length) {
     placeholder.classList.remove("hidden");
     placeholder.innerHTML =
-      '<div class="placeholder-icon">🤔</div><p>Nenhuma recomendação encontrada</p>';
+      '<div class="placeholder-icon"></div><p>Nenhuma recomendação encontrada</p>';
     container.classList.add("hidden");
     return;
   }
