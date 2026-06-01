@@ -385,13 +385,13 @@ function renderStats(raw, noC, noP, badQ, final) {
     ? `coluna <em>${columnMap.quantity}</em>`
     : (quantityMode === 'price' && columnMap.price ? `valor de <em>${columnMap.price}</em>` : 'binário (1 por compra)');
   document.getElementById('preproc-log').innerHTML = `
-    <div class="log-line"><span>🔍</span> Total bruto: <span class="kept">${fmtNum(raw)} linhas</span></div>
-    <div class="log-line"><span>🗑</span> Sem cliente (<em>${columnMap.customer}</em>) removidas: <span class="removed">−${fmtNum(noC)}</span></div>
-    <div class="log-line"><span>🗑</span> Sem produto (<em>${columnMap.product}</em>) removidas: <span class="removed">−${fmtNum(noP)}</span></div>
+    <div class="log-line"><span></span> Total bruto: <span class="kept">${fmtNum(raw)} linhas</span></div>
+    <div class="log-line"><span></span> Sem cliente (<em>${columnMap.customer}</em>) removidas: <span class="removed">−${fmtNum(noC)}</span></div>
+    <div class="log-line"><span></span> Sem produto (<em>${columnMap.product}</em>) removidas: <span class="removed">−${fmtNum(noP)}</span></div>
     ${(columnMap.quantity || (columnMap.price && quantityMode === 'price'))
-      ? `<div class="log-line"><span>🗑</span> Quantidade/valor ≤ 0 removidas: <span class="removed">−${fmtNum(badQ)}</span></div>` : ''}
-    <div class="log-line"><span>✅</span> Dataset final: <span class="kept">${fmtNum(final)} linhas</span></div>
-    <div class="log-line"><span>⚖️</span> Pesos usados: ${qtyLabel}</div>
+      ? `<div class="log-line"><span></span> Quantidade/valor ≤ 0 removidas: <span class="removed">−${fmtNum(badQ)}</span></div>` : ''}
+    <div class="log-line"><span></span> Dataset final: <span class="kept">${fmtNum(final)} linhas</span></div>
+    <div class="log-line"><span></span> Pesos usados: ${qtyLabel}</div>
   `;
 }
 
