@@ -2,7 +2,7 @@
 
 Um sistema inteligente de recomendação de produtos para varejo, baseado em algoritmos de machine learning (KNN, K-Means e PCA). Processa dados de transações em CSV e fornece recomendações personalizadas com análise de segmentação de clientes.
 
-##  Visão Geral
+## Visão Geral
 
 O **KNN Retail Recommender** é uma aplicação web que utiliza técnicas avançadas de análise de dados e machine learning para:
 
@@ -12,7 +12,7 @@ O **KNN Retail Recommender** é uma aplicação web que utiliza técnicas avanç
 - **Análise de dados** com limpeza automática e normalização L2
 - **Mapeamento flexível** de colunas CSV para adaptação a diferentes formatos
 
-##  Funcionalidades Principais
+## Funcionalidades Principais
 
 ### 1. Upload e Processamento de Dados
 
@@ -21,27 +21,32 @@ O **KNN Retail Recommender** é uma aplicação web que utiliza técnicas avanç
 - Limpeza de dados com remoção automática de registros inválidos
 - Normalização L2 dos vetores de compra
 
-### 2. Sistema de Recomendação KNN
+### 2. Sistema de Recomendação KNN com Co-Ocorrência
 
 - Calcula similaridade de cosseno entre perfis de clientes
-- Identifica 6 vizinhos mais próximos para cada cliente
+- Identifica os 6 vizinhos mais próximos para cada cliente
+- **Nova funcionalidade: Matriz de co-ocorrência** produto × produto
+  - Registra quantos clientes compraram cada par de produtos
+  - Aumenta scores para produtos frequentemente comprados juntos
 - Recomenda produtos não adquiridos pelos vizinhos
-- Scores ponderados pela distância (similaridade)
+- Scores ponderados pela distância (vizinho) + co-ocorrência (0.3 × peso cooc)
 - Interface interativa para seleção de cliente e quantidade de recomendações
 
 ### 3. Segmentação com K-Means
 
-- Agrupa clientes em 4 segmentos baseado em padrões de compra
+- Agrupa clientes em **5 segmentos** baseado em padrões de compra
 - Inicialização inteligente dos centroides
-- 40 iterações de otimização
+- 40 iterações de otimização com Lloyd's algorithm
 - Análise de distribuição por segmento
 
 ### 4. Redução Dimensional com PCA
 
 - Reduz dados de alta dimensão para visualização em 2D
-- Power iteration para cálculo eficiente de componentes principais
+- **Power iteration method** para cálculo eficiente de componentes principais
+  - Calcula PC1 (primeira componente) com 20 iterações
+  - Deflaciona dados e calcula PC2 (segunda componente)
 - Visualiza distribuição espacial dos clientes
-- Mantém até 800 amostras para renderização otimizada
+- Amostra até 800 clientes automaticamente para renderização otimizada
 
 ### 5. Análise Exploratória
 
@@ -51,80 +56,93 @@ O **KNN Retail Recommender** é uma aplicação web que utiliza técnicas avanç
 - Visualizações com Chart.js (scatter plot, donut chart, bar charts)
 - Top 5 produtos por segmento
 
-##  Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
 /site
-├── index.html          # Estrutura HTML da aplicação
-├── style.css          # Estilos CSS (tema dark moderno com acentos cyan/purple)
-├── script.js          # Lógica JavaScript (algoritmos e interações)
-└── README.md          # Este arquivo
+├── index.html          # Estrutura HTML da aplicação (5 seções)
+├── Styles.css          # Estilos CSS (tema dark moderno com acentos cyan/purple)
+├── App.js              # Lógica JavaScript (algoritmos e interações)
+└── README.md           # Este arquivo
 ```
 
 ### Organização de Código
 
 **HTML (index.html)**
 
-- 5 seções principais documentadas
-- Modal para mapeamento de colunas
+- 5 seções principais documentadas (Upload → Stats → KNN → Segmentação → Top Produtos)
+- Modal para mapeamento de colunas com detecção automática
 - Componentes reutilizáveis com classes CSS bem estruturadas
 - Acessibilidade com labels apropriados
 
-**CSS (style.css)**
+**CSS (Styles.css)**
 
-- Design responsivo (breakpoints em 900px e 560px)
-- Sistema de cores com CSS variables
-- Efeitos visuais: blur, gradientes, transições suaves
-- Grid layout para disposição de componentes
+- Design responsivo (adaptável para desktop, tablet e mobile)
+- Sistema de cores com CSS variables (tema dark com gradientes)
+- Efeitos visuais: blur, gradientes, transições suaves, animações
+- Grid layout e Flexbox para disposição de componentes
+- ~400 linhas de código bem estruturado
 
-**JavaScript (script.js)**
+**JavaScript (App.js)**
 
-- ~800 linhas de código bem documentado
-- Funções puras para algoritmos matemáticos
-- Event listeners para interação do usuário
-- Processamento assíncrono com feedback visual
+- ~700 linhas de código bem documentado
+- Funções puras para algoritmos matemáticos (KNN, K-Means, PCA, Normalização L2)
+- Detecção heurística de colunas com suporte multilíngue (PT-BR/EN)
+- Matriz de co-ocorrência para recomendações aprimoradas
+- Event listeners para interação do usuário com feedback visual
+- Processamento assíncrono com progress bar animado
 
-##  Algoritmos Utilizados
+## Algoritmos Utilizados
 
-### K-Nearest Neighbors (KNN)
+### K-Nearest Neighbors (KNN) com Co-Ocorrência
+
+```
+1. Constrói matriz binária cliente × produto (1 = comprou, 0 = não comprou)
+2. Calcula matriz de co-ocorrência: cooc = binaryMatrix.T @ binaryMatrix
+   - cooc[i][j] = número de clientes que compraram produto i E produto j
+3. Para cada cliente:
+   a. Calcula similaridade (distância de cosseno) para todos os outros clientes
+   b. Seleciona 6 vizinhos mais próximos
+   c. Para cada vizinho, itera sobre produtos não comprados pelo cliente:
+      - peso_vizinho = 1 / (rank + 1)
+      - peso_cooc = soma(cooc[produto, p] para cada p comprado pelo cliente)
+      - score = peso_vizinho + 0.3 × peso_cooc
+   d. Filtra produtos já adquiridos pelo cliente
+   e. Retorna top-N produtos ordenados por score descendente
+```
+
+### K-Means Clustering (5 Clusters)
+
+```
+1. Inicializa 5 centroides distribuídos no espaço amostral
+2. Para 40 iterações (Lloyd's algorithm):
+   a. Atribui cada cliente ao centroide mais próximo (distância euclidiana)
+   b. Recalcula cada centroide como média dos seus clientes
+   c. Verifica convergência
+3. Gera labels de cluster (0-4) para visualização e análise de segmentos
+```
+
+### Principal Component Analysis (PCA) - Power Iteration
+
+```
+1. Calcula média dos dados e centraliza em torno da origem
+2. Power iteration para PC1 (20 iterações):
+   a. Inicializa vetor aleatório v
+   b. Itera: v = (A.T @ A) @ v, v = v / ||v||
+   c. Converge para autovetor de maior autovalor
+3. Deflaciona dados: A_deflated = A - λ₁ × PC1 ⊗ PC1.T
+4. Power iteration para PC2 (20 iterações) na matriz deflacionada
+5. Projeta dados nos 2 primeiros componentes principais para visualização
+```
+
+### Normalização L2 (Euclidean Normalization)
 
 ```
 Para cada cliente:
-1. Calcula distância de cosseno para todos os outros clientes
-2. Seleciona 6 vizinhos mais próximos
-3. Agrega produtos dos vizinhos ponderados pela similaridade
-4. Filtra produtos já adquiridos pelo cliente
-5. Retorna top-N produtos com maiores scores
-```
-
-### K-Means Clustering
-
-```
-1. Inicializa 4 centroides aleatoriamente
-2. Para 40 iterações:
-   a. Atribui cada ponto ao centroide mais próximo
-   b. Recalcula centroide como média de seus pontos
-   c. Repete até convergência
-3. Gera labels de cluster para visualização
-```
-
-### Principal Component Analysis (PCA)
-
-```
-1. Calcula média dos dados
-2. Centraliza os dados em torno da origem
-3. Usa power iteration para encontrar PC1 (primeira componente)
-4. Deflaciona dados para encontrar PC2 (segunda componente)
-5. Projeta dados nos 2 primeiros componentes principais
-```
-
-### Normalização L2
-
-```
-Para cada cliente:
-1. Calcula vetor de compras por produto
+1. Calcula vetor de compras por produto (quantidade ou binário)
 2. Normaliza: vetor = vetor / ||vetor||₂
-3. Garante vetores unitários para cálculo de similaridade
+3. Garante todos os vetores com norma = 1
+4. Permite cálculo de similaridade por produto escalar (dot product = cosine similarity)
 ```
 
 ## Como Usar
@@ -197,19 +215,23 @@ Após confirmação:
    ├─ Remove quantidade/preço ≤ 0
    ↓
 5. Construção da Matriz Cliente-Produto
+   ├─ Matriz binária: comprou (1) ou não (0)
+   ├─ Matriz de co-ocorrência: frequência de produtos comprados juntos
    ↓
 6. Normalização L2
    ↓
-7. Treinamento KNN (embedding)
+7. Treinamento KNN com Co-Ocorrência
+   ├─ Cálculo de similaridade cosseno
+   ├─ Matriz de co-ocorrência produto × produto
    ↓
-8. K-Means (4 clusters)
+8. K-Means (5 clusters)
    ↓
-9. PCA 2D
+9. PCA 2D (Power Iteration)
    ↓
 10. Renderização de Resultados
     ├─ Estatísticas
-    ├─ KNN interface
-    ├─ Scatter plot + Donut
+    ├─ KNN interface com scores ponderados
+    ├─ Scatter plot (PCA) + Donut (distribuição)
     └─ Top produtos por segmento
 ```
 
@@ -269,10 +291,11 @@ O sistema utiliza heurísticas com palavras-chave em português e inglês:
 
 - Parse: O(n) onde n = número de linhas
 - Limpeza: O(n)
-- Matriz: O(n × m) onde m = produtos
-- KNN: O(c² × m) onde c = clientes (com aproximação de 6 vizinhos)
-- K-Means: O(k × i × c × m) onde k=4, i=40
-- PCA: O(sample × iterations × m) com power iteration
+- Matriz Binária e Co-ocorrência: O(n + c × p²) onde c = clientes, p = produtos
+- Normalização L2: O(c × p)
+- KNN: O(c² × p) com similaridade cosseno + co-ocorrência O(n vizinhos × p)
+- K-Means: O(k × i × c × p) onde k=5 clusters, i=40 iterações
+- PCA: O(p² × sample × 20 + deflate) com power iteration
 
 ### Performance
 
@@ -321,10 +344,11 @@ npx http-server
 
 ## Referências e Estudos
 
-- **KNN**: Métrica de similaridade baseada em cosseno
-- **K-Means**: Lloyd's algorithm com inicialização aleatória
-- **PCA**: Power iteration method para autovalores
-- **Normalização**: L2 norm (Euclidean normalization)
+- **KNN + Co-ocorrência**: Recomendação híbrida combinando similaridade cosseno com matriz de co-compra
+- **K-Means**: Lloyd's algorithm com 5 clusters e 40 iterações
+- **PCA**: Power iteration method para cálculo eficiente de componentes principais
+- **Normalização L2**: Euclidean normalization para vetores unitários
+- **Matriz de Co-Ocorrência**: binaryMatrix.T @ binaryMatrix para capturar padrões de compra conjunta
 
 ## Informações do Projeto
 
