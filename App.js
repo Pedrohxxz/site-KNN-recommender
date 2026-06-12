@@ -71,6 +71,71 @@ function loadFile(file) {
   });
 }
 
+// ── CUSTOM DROPDOWN COMPONENT ────────────────────────────────
+function buildCustomSelect(wrapperId, options, selectedValue, nullable) {
+  const wrapper  = document.getElementById(wrapperId);
+  const trigger  = wrapper.querySelector('.custom-select-trigger');
+  const dropdown = wrapper.querySelector('.custom-select-dropdown');
+
+  wrapper.dataset.value = selectedValue || '';
+
+  function renderOptions() {
+    dropdown.innerHTML = '';
+    if (nullable) {
+      const none = document.createElement('div');
+      none.className = 'custom-select-option none-option' + (wrapper.dataset.value === '' ? ' selected' : '');
+      none.dataset.val = '';
+      none.innerHTML = `<span>— não usar —</span><span class="opt-check">✓</span>`;
+      dropdown.appendChild(none);
+    }
+    options.forEach(opt => {
+      const el = document.createElement('div');
+      el.className = 'custom-select-option' + (wrapper.dataset.value === opt ? ' selected' : '');
+      el.dataset.val = opt;
+      el.innerHTML = `<span>${opt}</span><span class="opt-check">✓</span>`;
+      dropdown.appendChild(el);
+    });
+  }
+
+  function updateTrigger() {
+    const val = wrapper.dataset.value;
+    trigger.innerHTML = val
+      ? `<span>${val}</span>`
+      : `<span class="placeholder">${nullable ? '— não usar —' : 'Selecionar coluna…'}</span>`;
+    wrapper.classList.toggle('mapped', !!val);
+  }
+
+  function closeDropdown(el) { (el || wrapper).classList.remove('open'); }
+  function openDropdown() {
+    document.querySelectorAll('.custom-select.open').forEach(el => { if (el !== wrapper) el.classList.remove('open'); });
+    renderOptions();
+    wrapper.classList.add('open');
+  }
+
+  trigger.addEventListener('click', () => wrapper.classList.contains('open') ? closeDropdown() : openDropdown());
+  trigger.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); wrapper.classList.contains('open') ? closeDropdown() : openDropdown(); }
+    if (e.key === 'Escape') closeDropdown();
+  });
+  dropdown.addEventListener('click', e => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    wrapper.dataset.value = opt.dataset.val;
+    updateTrigger();
+    closeDropdown();
+    wrapper.classList.remove('error');
+    updateQtyOptionsVisibility();
+  });
+
+  updateTrigger();
+}
+
+// Close on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.custom-select'))
+    document.querySelectorAll('.custom-select.open').forEach(el => el.classList.remove('open'));
+});
+
 // ── MAPPING MODAL ─────────────────────────────────────────────
 function openMappingModal(cols, filename, rowCount) {
   document.getElementById('modal-filename').textContent = filename;
@@ -82,24 +147,10 @@ function openMappingModal(cols, filename, rowCount) {
 
   const detected = autoDetect(cols);
 
-  const fields = ['customer', 'product', 'quantity', 'price'];
-  const noneOpt = `<option value="">— não usar —</option>`;
-  fields.forEach(f => {
-    const sel = document.getElementById('map-' + f);
-    sel.innerHTML = (f === 'customer' || f === 'product') ? '' : noneOpt;
-    cols.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c;
-      opt.textContent = c;
-      if (detected[f] === c) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    if (detected[f]) sel.classList.add('mapped');
-    sel.addEventListener('change', () => {
-      sel.classList.toggle('mapped', !!sel.value);
-      updateQtyOptionsVisibility();
-    });
-  });
+  buildCustomSelect('cs-customer', cols, detected.customer || cols[0],          false);
+  buildCustomSelect('cs-product',  cols, detected.product  || cols[1] || cols[0], false);
+  buildCustomSelect('cs-quantity', cols, detected.quantity || '',                true);
+  buildCustomSelect('cs-price',    cols, detected.price    || '',                true);
 
   updateQtyOptionsVisibility();
   document.getElementById('mapping-error').style.display = 'none';
@@ -107,9 +158,11 @@ function openMappingModal(cols, filename, rowCount) {
 }
 
 function updateQtyOptionsVisibility() {
-  const hasQty = !!document.getElementById('map-quantity').value;
-  document.getElementById('qty-options-box').style.opacity      = hasQty ? '0.35' : '1';
-  document.getElementById('qty-options-box').style.pointerEvents = hasQty ? 'none' : 'auto';
+  const hasQty = !!document.getElementById('cs-quantity')?.dataset.value;
+  const box = document.getElementById('qty-options-box');
+  if (!box) return;
+  box.style.opacity       = hasQty ? '0.35' : '1';
+  box.style.pointerEvents = hasQty ? 'none'  : 'auto';
 }
 
 document.getElementById('btn-cancel-mapping').addEventListener('click', () => {
@@ -118,17 +171,17 @@ document.getElementById('btn-cancel-mapping').addEventListener('click', () => {
 });
 
 document.getElementById('btn-confirm-mapping').addEventListener('click', () => {
-  const custCol  = document.getElementById('map-customer').value;
-  const prodCol  = document.getElementById('map-product').value;
-  const qtyCol   = document.getElementById('map-quantity').value;
-  const priceCol = document.getElementById('map-price').value;
+  const custCol  = document.getElementById('cs-customer').dataset.value;
+  const prodCol  = document.getElementById('cs-product').dataset.value;
+  const qtyCol   = document.getElementById('cs-quantity').dataset.value;
+  const priceCol = document.getElementById('cs-price').dataset.value;
   const errEl    = document.getElementById('mapping-error');
 
   if (!custCol || !prodCol) {
     errEl.textContent = 'Os campos Cliente e Produto são obrigatórios.';
     errEl.style.display = 'block';
-    document.getElementById('map-customer').classList.toggle('error', !custCol);
-    document.getElementById('map-product').classList.toggle('error', !prodCol);
+    if (!custCol) document.getElementById('cs-customer').classList.add('error');
+    if (!prodCol) document.getElementById('cs-product').classList.add('error');
     return;
   }
   if (custCol === prodCol) {
@@ -281,7 +334,7 @@ async function runPipeline(rawRows) {
   document.getElementById('customer-col-label').textContent = cm.customer;
 }
 
-// ── KNN (similaridade cosseno, k=6) ──────────────────────────
+// ── KNN (similaridade cosseno, k=30) ─────────────────────────
 function cosine(a, b) {
   let d = 0;
   for (let i = 0; i < a.length; i++) d += a[i] * b[i];
@@ -299,7 +352,7 @@ function recommend(customerId, nRec) {
     sims.push({ idx: i, sim: cosine(target, normalizedMatrix[i]) });
   }
   sims.sort((a, b) => b.sim - a.sim);
-  const neighbors = sims.slice(0, 6);
+  const neighbors = sims.slice(0, 30);
   const scores = {};
   for (const nb of neighbors) {
     for (const [prod, qty] of Object.entries(customerMatrix[customers[nb.idx]])) {
