@@ -352,7 +352,7 @@ npx http-server
 
 ## Informações do Projeto
 
-- **Autor**: Pedro / UNIFACS
+- **Autores**: Pedro Oliveira / Pedro Fernandes / Felipe Borges UNIFACS
 - **Tema**: A3 - Inteligência Artificial
 - **Data**: Maio 2026
 - **Status**: Completo e funcional
