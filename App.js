@@ -17,6 +17,9 @@ let columnMap      = {};       // { customer, product, quantity(opt), price(opt)
 let quantityMode   = 'binary'; // 'binary' | 'price'
 let parsedRawRows  = [];
 let parsedFileName = '';
+let cooccurrence   = null;     // matriz de co-ocorrência produto x produto (Float32Array[])
+let binaryMatrix   = [];       // matriz binária cliente x produto (mesma ordem de normalizedMatrix)
+let productIndex   = {};       // mapa produto → índice numérico para lookup O(1)
 
 // ── HEURISTIC COLUMN DETECTION ───────────────────────────────
 const HINTS = {
@@ -271,6 +274,10 @@ async function runPipeline(rawRows) {
   customers      = Object.keys(custMap).sort();
   customerMatrix = custMap;
 
+  // Mapa produto → índice para lookup O(1) na co-ocorrência
+  productIndex = {};
+  products.forEach((p, i) => { productIndex[p] = i; });
+
   stepDone('matrix');
   setProgress(42, 'Normalizando com L2...');
   stepActive('norm');
@@ -286,9 +293,38 @@ async function runPipeline(rawRows) {
   });
 
   stepDone('norm');
-  setProgress(55, 'Treinando KNN...');
+  setProgress(55, 'Treinando KNN e co-ocorrências...');
   stepActive('knn');
   await sleep(30);
+
+  // Matriz binária (cliente comprou produto = 1, não comprou = 0)
+  // Equivalente ao: (customer_product_matrix > 0).values.astype(float)
+  binaryMatrix = customers.map(cid => {
+    const row = new Float32Array(products.length);
+    const purchases = custMap[cid];
+    for (let j = 0; j < products.length; j++) {
+      row[j] = purchases[products[j]] ? 1 : 0;
+    }
+    return row;
+  });
+
+  // Matriz de co-ocorrência: cooc = binaryMatrix.T @ binaryMatrix
+  // cooc[i][j] = número de clientes que compraram tanto produto i quanto produto j
+  // Equivalente ao: matrix_array.T @ matrix_array
+  const nProds = products.length;
+  const nCusts = customers.length;
+  cooccurrence = Array.from({ length: nProds }, () => new Float32Array(nProds));
+  for (let c = 0; c < nCusts; c++) {
+    const row = binaryMatrix[c];
+    for (let i = 0; i < nProds; i++) {
+      if (row[i] === 0) continue;
+      for (let j = i; j < nProds; j++) {
+        if (row[j] === 0) continue;
+        cooccurrence[i][j] += 1;
+        if (i !== j) cooccurrence[j][i] += 1;
+      }
+    }
+  }
   stepDone('knn');
 
   setProgress(67, 'Rodando KMeans (5 clusters)...');
@@ -334,7 +370,13 @@ async function runPipeline(rawRows) {
   document.getElementById('customer-col-label').textContent = cm.customer;
 }
 
-// ── KNN (similaridade cosseno, k=30) ─────────────────────────
+// ── KNN + CO-OCORRÊNCIA (replica lógica do Colab) ────────────
+// Equivalente Python:
+//   peso_vizinho = 1 / (rank + 1)
+//   ignora vizinhos com dist > 0.95
+//   peso_cooc = sum(coocorrencia[produto_idx, p_idx] for p_idx in indices_conhecidos)
+//   score = peso_vizinho + 0.3 * peso_cooc
+
 function cosine(a, b) {
   let d = 0;
   for (let i = 0; i < a.length; i++) d += a[i] * b[i];
@@ -344,21 +386,60 @@ function cosine(a, b) {
 function recommend(customerId, nRec) {
   const idx = customers.indexOf(customerId);
   if (idx === -1) return [];
-  const owned  = new Set(Object.keys(customerMatrix[customerId]));
+
+  // Produtos que o cliente já comprou
+  const owned = new Set(Object.keys(customerMatrix[customerId]));
+
+  // Índices dos produtos que o cliente já comprou (para co-ocorrência)
+  const ownedIndices = [];
+  for (const prod of owned) {
+    const j = productIndex[prod];
+    if (j !== undefined) ownedIndices.push(j);
+  }
+
+  // Calcula similaridade com todos os outros clientes
   const target = normalizedMatrix[idx];
   const sims   = [];
   for (let i = 0; i < normalizedMatrix.length; i++) {
     if (i === idx) continue;
-    sims.push({ idx: i, sim: cosine(target, normalizedMatrix[i]) });
+    const sim  = cosine(target, normalizedMatrix[i]);
+    const dist = 1 - sim; // distância cosseno = 1 - similaridade
+    sims.push({ idx: i, sim, dist });
   }
-  sims.sort((a, b) => b.sim - a.sim);
+  sims.sort((a, b) => a.dist - b.dist); // ordena por distância crescente (mais próximo primeiro)
+
   const neighbors = sims.slice(0, 30);
-  const scores = {};
-  for (const nb of neighbors) {
-    for (const [prod, qty] of Object.entries(customerMatrix[customers[nb.idx]])) {
-      if (!owned.has(prod)) scores[prod] = (scores[prod] || 0) + nb.sim * qty;
+  const scores    = {};
+
+  neighbors.forEach((nb, rank) => {
+    // Equivalente ao: if dist > 0.95: continue
+    if (nb.dist > 0.95) return;
+
+    // Peso por ranking: 1º vizinho = 1.0, 2º = 0.5, 3º = 0.33...
+    // Equivalente ao: peso_vizinho = 1 / (rank + 1)
+    const pesoVizinho = 1 / (rank + 1);
+
+    const nbId       = customers[nb.idx];
+    const nbPurchases = customerMatrix[nbId];
+
+    for (const produto of Object.keys(nbPurchases)) {
+      if (owned.has(produto)) continue; // não recomenda o que o cliente já tem
+
+      const prodIdx = productIndex[produto];
+      if (prodIdx === undefined) continue;
+
+      // Peso de co-ocorrência: soma das co-ocorrências do produto com cada item que o cliente já comprou
+      // Equivalente ao: sum(coocorrencia[produto_idx, p_idx] for p_idx in indices_conhecidos)
+      let pesoCooc = 0;
+      for (const pIdx of ownedIndices) {
+        pesoCooc += cooccurrence[prodIdx][pIdx];
+      }
+
+      // Score final: peso_vizinho + 0.3 * peso_cooc
+      scores[produto] = (scores[produto] || 0) + pesoVizinho + (0.3 * pesoCooc);
     }
-  }
+  });
+
   return Object.entries(scores)
     .sort((a, b) => b[1] - a[1])
     .slice(0, nRec)
